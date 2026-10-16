@@ -1,0 +1,53 @@
+function cfg = get_dataset_config(name)
+% GET_DATASET_CONFIG  Per-dataset configuration.
+%
+%   cfg = GET_DATASET_CONFIG()          % cell of dataset keys
+%   cfg = GET_DATASET_CONFIG(name)      % struct for one dataset
+%
+% All values come from src/utils/get_user_settings.m
+% (usr.dataset.<name>, usr.B, usr.lambda*, usr.margin, usr.wd, usr.n2v*).
+% Only the graph property 'directed' is fixed here.
+% Layer notation: usr.dataset.<name>.layers = [h1 h2 ...]; the input width is
+% the Node2Vec dimension d. fusionDim = last hidden width.
+
+list = {'karate','dolphins','football','polbooks','polblogs', ...
+        'email','citeseer','cora','pubmed','dblp'};
+if nargin == 0
+    cfg = list;
+    return
+end
+key = lower(strtrim(name));
+if strcmp(key, 'dolphin'), key = 'dolphins'; end   % accept singular alias
+if ~any(strcmp(key, list))
+    error('get_dataset_config:unknown', 'Unknown dataset: %s', name);
+end
+
+usr = get_user_settings();
+if ~isfield(usr.dataset, key)
+    error('get_dataset_config:missing', ...
+        'usr.dataset.%s is not defined in get_user_settings.m', key);
+end
+p = usr.dataset.(key);
+
+directedSet = {'polblogs','email','citeseer'};
+
+cfg = struct( ...
+    'name',      key, ...
+    'folder',    key, ...
+    'directed',  any(strcmp(key, directedSet)), ...
+    'layers',    p.layers, ...
+    'batchSize', p.batchSize, ...
+    'n2v',       struct(), ...
+    'B',         usr.B, ...
+    'lambda',    struct('rec', usr.lambdaRec, 'sup', usr.lambdaSup, 'sep', usr.lambdaSep), ...
+    'wd',        usr.wd, ...
+    'margin',    usr.margin, ...
+    'fusionDim', p.layers(end));
+
+% numEpochs is filled from the epoch budget (usr.epochs) by get_n2v_options /
+% psae_pipeline once the graph size is known.
+cfg.n2v = struct('p', usr.n2vP, 'q', usr.n2vQ, ...
+    'numNegative', usr.n2vNumNegative, 'learningRate', usr.n2vLearningRate, ...
+    'd', p.d, 'l', p.l, 'r', p.r, 'w', p.w, ...
+    'numEpochs', usr.epochs(1).skipgram);
+end
